@@ -1,153 +1,52 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getNewsBySlug } from "../lib/news";
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00`));
-}
+import BlockRenderer from "../components/BlockRenderer";
+import NewsCard from "../components/NewsCard";
+import { formatNewsDate, getNewsBySlug } from "../lib/news";
+import type { News } from "../types";
 
 export default function NewsArticlePage() {
   const { slug } = useParams<{ slug: string }>();
+  const [article, setArticle] = useState<News | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const article = getNewsBySlug(slug ?? "");
+  useEffect(() => {
+    if (!slug) return;
+    getNewsBySlug(slug).then(setArticle).catch((reason: Error) => setError(reason.message)).finally(() => setLoading(false));
+  }, [slug]);
 
-  if (!article) {
-    return (
-      <main className="flex min-h-[70vh] items-center justify-center px-6">
-        <div className="text-center">
-          <div className="mb-6 text-7xl">
-            🤖
-          </div>
+  useEffect(() => {
+    if (!article) return;
+    document.title = `${article.seo_title || article.title} | LIRA`;
+    const description = article.seo_description || article.excerpt || article.subtitle;
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.setAttribute("name", "description"); document.head.appendChild(meta); }
+    meta.setAttribute("content", description);
+  }, [article]);
 
-          <h1 className="text-3xl font-bold text-gray-900">
-            Notícia não encontrada
-          </h1>
-
-          <p className="mt-3 text-gray-600">
-            Nosso robô procurou por todo lado, mas não encontrou
-            essa notícia.
-          </p>
-
-          <Link
-            to="/"
-            className="
-              mt-8
-              inline-flex
-              rounded-lg
-              bg-blue-600
-              px-6
-              py-3
-              font-medium
-              text-white
-              transition
-              hover:bg-blue-700
-            "
-          >
-            ← Voltar para a Home
-          </Link>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <main className="flex min-h-[70vh] items-center justify-center text-gray-500">Carregando matéria…</main>;
+  if (error || !article) return <main className="flex min-h-[70vh] items-center justify-center px-6"><div className="text-center"><h1 className="text-3xl font-bold text-gray-900">Notícia não encontrada</h1><p className="mt-3 text-gray-600">{error}</p><Link to="/noticias" className="mt-8 inline-flex bg-[#101b3d] px-6 py-3 font-medium text-white">← Todas as notícias</Link></div></main>;
 
   return (
     <main className="bg-white">
-      <article className="mx-auto max-w-4xl px-6 py-16">
-
-        {/* Voltar */}
-
-        <Link
-          to="/noticias"
-          className="
-            mb-10
-            inline-flex
-            items-center
-            text-sm
-            font-medium
-            text-gray-500
-            transition
-            hover:text-blue-600
-          "
-        >
-          ← Todas as notícias
-        </Link>
-
-        {/* Cabeçalho */}
-
-        <header>
-          <time className="text-sm font-medium text-blue-600">
-            {formatDate(article.date)}
-          </time>
-
-          <h1
-            className="
-              mt-4
-              text-4xl
-              font-bold
-              leading-tight
-              tracking-tight
-              text-gray-900
-              md:text-5xl
-            "
-          >
-            {article.title}
-          </h1>
-
-          <p
-            className="
-              mt-6
-              text-xl
-              leading-relaxed
-              text-gray-600
-            "
-          >
-            {article.abstract}
-          </p>
+      <article>
+        <header className="border-b border-gray-200 bg-[#f7f7f5]">
+          <div className="mx-auto max-w-4xl px-6 py-16 mb">
+            <Link to="/noticias" className="mb-10 inline-flex text-sm font-medium text-gray-500 transition hover:text-[#b6202a]">← Todas as notícias</Link>
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-[#b6202a]"><time>{formatNewsDate(article.published_at)}</time>{article.category && <><span>•</span><span>{article.category.name}</span></>}</div>
+            <h1 className="mt-5 text-4xl font-black leading-tight tracking-tight text-[#101b3d] md:text-6xl">{article.title}</h1>
+            <p className="mt-6 text-xl leading-relaxed text-gray-600">{article.subtitle}</p>
+            <p className="mt-8 text-sm text-gray-500">Por <strong className="text-gray-800">{article.author?.name ?? "Equipe LIRA"}</strong></p>
+          </div>
         </header>
-
-        {/* Imagem */}
-
-        <div className="mt-10 overflow-hidden rounded-2xl">
-          <img
-            src={article.placeholder}
-            alt={article.title}
-            className="aspect-[16/9] w-full object-cover"
-          />
+        <div className="mx-auto max-w-5xl px-6 pt-12">
+          {article.cover_image_url && <figure><img src={article.cover_image_url} alt={article.cover_image_alt || article.title} className="aspect-[16/9] w-full rounded-2xl object-cover" />{(article.cover_image_alt || article.cover_image_credit) && <figcaption className="mt-3 text-sm text-gray-500">{article.cover_image_alt}{article.cover_image_credit && <strong> Foto: {article.cover_image_credit}</strong>}</figcaption>}</figure>}
         </div>
-
-        {/* Conteúdo */}
-
-        <div
-          className="
-            mt-12
-            space-y-7
-            text-lg
-            leading-8
-            text-gray-700
-          "
-        >
-          {article.content.map((paragraph, index) => (
-            <p key={index}>
-              {paragraph}
-            </p>
-          ))}
-        </div>
-
-        {/* Footer da matéria */}
-
-        <footer className="mt-16 border-t border-gray-200 pt-8">
-          <Link
-            to="/noticias"
-            className="font-medium text-blue-600 transition hover:text-blue-800"
-          >
-            ← Ver todas as notícias
-          </Link>
-        </footer>
-
+        <div className="mx-auto max-w-4xl px-6 mb-20"><BlockRenderer blocks={article.content} />{article.tags.length > 0 && <footer className="my-16 flex flex-wrap gap-2 border-t border-gray-200 pt-8">{article.tags.map((tag) => <span key={tag} className="rounded-full bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-600">{tag}</span>)}</footer>}</div>
       </article>
+      {article.related && article.related.length > 0 && <section className="border-t border-gray-200 bg-gray-50 py-16"><div className="mx-auto max-w-7xl px-6"><h2 className="text-3xl font-black tracking-tight text-[#101b3d]">Leia também</h2><div className="mt-8 grid gap-8 md:grid-cols-3">{article.related.map((item) => <NewsCard key={item.id} article={item} />)}</div></div></section>}
     </main>
   );
 }
+
